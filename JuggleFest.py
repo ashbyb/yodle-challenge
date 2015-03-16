@@ -51,6 +51,13 @@ root_logger.addHandler(error_handler)
 
 class JuggleFestEntityBase(object):
 	''' A base class for entities in the juggle fest '''
+	def __init__(self, number, h, e, p):
+		''' initialize base varaibles common across entities '''
+		self.num = number
+		self.h = h
+		self.e = e
+		self.p = p
+
 	def dot_product(self, remote):
 		''' calculate the dot product between two entities '''
 		return (self.h * remote.h) + (self.e * remote.e) + (self.p * remote.p)
@@ -59,10 +66,7 @@ class JuggleFestEntityBase(object):
 class Circuit(JuggleFestEntityBase):
 	''' A juggling circuit class '''
 	def __init__(self, number, h, e, p, max_jugglers=0):
-		self.num = number
-		self.h = h
-		self.e = e
-		self.p = p
+		JuggleFestEntityBase.__init__(self, number, h, e, p)
 		# Default to empty until we can reference the circuit objects (default: []).
 		self.jugglers = [] 
 		# Prevent adding participants until we know how many we can take (default: 0).
@@ -82,10 +86,7 @@ class Circuit(JuggleFestEntityBase):
 class Juggler(JuggleFestEntityBase):
 	''' A juggler class '''
 	def __init__(self, number, h, e, p, preferences):
-		self.num = number
-		self.h = h
-		self.e = e
-		self.p = p
+		JuggleFestEntityBase.__init__(self, number, h, e, p)
 		self.preferences = preferences
 
 	def __repr__(self):
@@ -137,24 +138,36 @@ class JuggleFestOmnipotentScheduler(object):
 										int(data[3][2:]), int(data[4][2:])))
 				elif data[0] == 'J':
 					# Assumes that circuits all came first. Which I was told I can assume.
-					self.jugglers.append(Juggler(int(data[1][1:]), int(data[2][2:]), int(data[3][2:]), 
-						int(data[4][2:]), [self.circuits[int(p[1:])] for p in data[5].split(',')]))
+					self.jugglers.append(Juggler(int(data[1][1:]), 
+										int(data[2][2:]), 
+										int(data[3][2:]), 
+										int(data[4][2:]), 
+										[self.circuits[int(p[1:])] for p in data[5].split(',')]))
 		
 		# Determine max participants per circuit
-		max_jugglers = len(self.jugglers) / len(self.circuits) # This is said to never produce a remainder.
+		max_jugglers = len(self.jugglers) / len(self.circuits) # Told to assume: No remainders here.
 		for circuit in self.circuits:
 			circuit.max_jugglers = max_jugglers
 
 	def _init_file_logging(self):
 		''' [Private] Initializes file-based logging if requested at instantiation '''
-		full_formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(module)s.%(funcName)s@L%(lineno)d:%(message)s")
+		full_formatter = logging.Formatter("""%(asctime)s:
+											%(levelname)s:
+											%(module)s.
+											%(funcName)s@L
+											%(lineno)d:
+											%(message)s""")
 		file_handler = logging.FileHandler(self.logging_file)
 		file_handler.setFormatter(full_formatter)
 		root_logger.addHandler(file_handler)
 		
 	def _init_console_logging(self):
 		''' [Private] Initializes console-based logging if requested at instantiation '''
-		clean_formatter = logging.Formatter("%(levelname)s:%(module)s.%(funcName)s@L%(lineno)d:%(message)s")
+		clean_formatter = logging.Formatter("""%(levelname)s:
+											%(module)s.
+											%(funcName)s@L
+											%(lineno)d:
+											%(message)s""")
 		console_handler = logging.StreamHandler(stream=sys.stdout)
 		console_handler.setFormatter(clean_formatter)
 		root_logger.addHandler(console_handler)
@@ -208,13 +221,33 @@ if __name__ == '__main__':
               |___/ |___/                          
 		""".format(version=VERSION)
 
-	parser = argparse.ArgumentParser(usage=usage_override(), prog=os.path.basename(__file__), description="%(prog)s: A program to schedule Jugglers to Circuits for Yodle.", epilog="[Note] If \'--log\' is supplied without an arugment, then a default filename (jugglefest_log.txt) is used for logging. When using the default filename, avoid argparse ambiguity by suppling \'--log\' as the last argument (after \'inputfile\').")
-
-	parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose", help="should I log my actions to console? [default: no]")
-	parser.add_argument("-l", "--log", nargs="?", const="jugglefest_log.txt", default=None, dest="logfile", metavar="aFilename", help="should I log my actions to a logfile? [default: no]")
-	parser.add_argument("inputfile", help="a path to a file of jugglers and circuits to be assigned.")
+	parser = argparse.ArgumentParser(
+				usage=usage_override(), 
+				prog=os.path.basename(__file__), 
+				description="%(prog)s: A program to schedule Jugglers to Circuits for Yodle.", 
+				epilog="""[Note] If \'--log\' is supplied without an arugment, then a 
+					default filename (jugglefest_log.txt) is used for logging. When using the 
+					default filename, avoid argparse ambiguity by suppling \'--log\' as the last 
+					argument (after \'inputfile\').""")
+	parser.add_argument("-v", "--verbose", 
+				action="store_true", 
+				default=False, 
+				dest="verbose", 
+				help="should I log my actions to console? [default: no]")
+	parser.add_argument("-l", "--log", 
+				nargs="?", 
+				const="jugglefest_log.txt", 
+				default=None, 
+				dest="logfile", 
+				metavar="aFilename", 
+				help="should I log my actions to a logfile? [default: no]")
+	parser.add_argument("inputfile", 
+				help="a path to a file of jugglers and circuits to be assigned.")
 	args = parser.parse_args()
 
 	# Time to Juggle Baby!
-	aGloriousJuggleFestScheduler = JuggleFestOmnipotentScheduler(args.inputfile, verbose=args.verbose, logging_file=args.logfile)
+	aGloriousJuggleFestScheduler = JuggleFestOmnipotentScheduler(
+										args.inputfile, 
+										verbose=args.verbose, 
+										logging_file=args.logfile)
 		
