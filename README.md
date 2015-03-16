@@ -1,0 +1,1 @@
+Solution to the programming challenge by Yodle, located here: http://www.yodlecareers.com/puzzles/jugglefest.html
