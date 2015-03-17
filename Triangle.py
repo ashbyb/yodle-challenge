@@ -1,38 +1,143 @@
 #!/usr/bin/env python
 # -*- coding: utf_8 -*-
 
-__created__ = "March 16 2015"
+__created__ = "March 17 2015"
 __author__ = "Brendan Ashby"
 __author_email__ = "brendanevansashby@gmail.com"
 
 """
 Notes and Thoughts:
-Teams complete juggling circuits (multiple tricks).
-  - H : Hand to Eye
-  - E : Endurance
-  - P : Pizzazz
+The assignment is seemingly simple, but some corner cases make it a bit harder.
 
-Quality of match determined by dot product of circuit and juggler's H, E, and P.
-  - Bigger is better!
+When you first approach the problem, it seems you just take each node, look at
+its child nodes, and choose the larger one. This works for the example 
+triangle given to us. See Example:
 
-A person can only be on one team.
-Each team's circuit is distinct.
+      1
+     1 2
+    3 1 2
+   3 1 1 2
 
-Match Jugglers to circuits so they will not want to switch.
-  - Switching Criteria:
-	 - Prefer the other circuit more (higher dot product)
-	 - AND Be a better fit (higher dot product) than another juggler already on the circuit.
-This seems to imply:
-If the other circuit is a better fit, but all of the jugglers there are themselves a better fit
-than the juggler thinking of switching, then he should not switch. Basically, he may be happier
-to switch but it will hurt the quality of the performance if he does!
+If you follow the simple "take the larger child process" then you would get
+1 -> 2 -> 2 -> 2 = 7 but the answer is 1 -> 1 -> 3 -> 3 = 8.
 
-Assume equal distribution of jugglers to circuits.
-  - Jugglers will always divide evenly into available circuits.
+Possible corner case:
+Any given node can be of ANY size. We can not take the risk of ignoring any
+node(s) due to some heuristic. For example:
+
+      1
+    10 1
+   10 1 1
+  10 1 1 1
+ 10 1 1 1 100
+
+Here, you may want to take the left nodes, and get 41, but the answer is 104.
+
+Another possible time-trade off technique would be to take the max() of each
+row. Summing these would give the best possible answer for the triangle, but
+if any of the nodes are not adjacent to the others then you are out of luck.
+Also, if you had items with the same size, then max() will likely (version 
+specific) choose the first item as max. This behavior is unpredictable 
+for a dict.
+
+One More Consideration:
+There may be multiple answers to a triangle. Example:
+
+    1
+   1 1
+  1 1 1
+ 1 1 1 1
+1 1 1 1 1
+
+"Write a program in a language of your choice to find the maximum total from 
+top to bottom [...]". So, if there are multiple answers, then any of those is
+the max() for the triangle. i.e. just take the first encountered.
+
+Bottom-Line:
+It seems you need an exhaustive approach to be sure of your answer. Try all
+possible combinations. Keep running total as you traverse (and the nodes used)
+and when you reach a node with no children, record the total. If there is
+already a total stored, replace if you are larger. On a tie, don't replace.
+When done traversing, current stored total is max.
+
+Total Paths to Traverse:
+paths = 2 ^ (rows - 1)
+
+So for the 100 row 'triangle.txt':
+There are 2 ^ 99 = 633,825,300,114,114,700,748,351,602,688 paths to check.
+
+Ok, I think I am missing something here. Thinking...
+
+Possible Solution:
+Take each row and sort by size. Then we work in reverse. Go through each item
+in the last row. Compare in turn to each item in next row up, go with the
+first item that is adjacent to current node. Continue until at root.
+Example:
+
+    1
+   1 3
+  1 5 2
+ 1 6 3 4
+7 3 4 5 2
+
+Sort / Reverse:
+75432
+6341
+521
+31
+1
+
+Compute best path for each node in last row:
+7 -> 1 -> 1 -> 1 -> 1 = 11
+5 -> 4 -> 2 -> 3 -> 1 = 15
+4 -> 6 -> 5 -> 3 -> 1 = 19 (answer)
+3 -> 6 -> 5 -> 3 -> 1 = 18
+2 -> 4 -> 2 -> 3 -> 1 = 12 
+
+Why this seems to be a solution:
+We are skipping some nodes that will never be reached as they are never part
+of a complete path.
+
+5 rows gives 16 paths to check exhaustively. Here, we only check 5.
+If this holds, then for the 'triangle.txt' we will only compute 100 paths,
+and not the huge number pasted above. 
+
+Let me see if I can break my solution:
+
+Odd number of rows...
+      1
+     2 2
+    2 1 2
+   2 1 1 2
+  2 1 9 1 2
+ 2 2 1 1 2 2
+2 1 1 1 1 1 2
+      ^
+      This node would find the right answer
+      (We assume a tie always selects the left side.)
+
+Try another:
+
+Even number of rows...
+         1
+        1 1
+       1 1 1
+      1 1 1 1
+     1 1 1 1 1 
+    2 1 1 1 1 2
+   2 2 1 9 1 2 2  <- assume the 9 is a huge number
+  2 2 2 1 1 2 2 2
+ 2 2 2 2 1 2 2 2 2
+1 1 1 1 1 1 1 1 1 1
+
+There is not a middle row to catch the island number. Everything is shunted
+away before seeing the large node. Argh!
+
+
 """
 
 # "Constants"
-VERSION = "0.1.4"
+VERSION = "0.1.0"
 
 # Python Standard Lib Imports
 import os
