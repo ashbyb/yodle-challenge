@@ -215,17 +215,13 @@ import logging
 # Attach root logger
 root_logger = logging.getLogger(__name__)
 root_logger.setLevel(logging.DEBUG)
-error_formatter = logging.Formatter("%(levelname)s:%(message)s")
-error_handler = logging.StreamHandler()
-error_handler.setFormatter(error_formatter)
-root_logger.addHandler(error_handler)
 
 
 # When brushing up on python custom comparison methods I found a great mixin.
 # Attribution: Link to Source: http://bit.ly/1Bysb8f
 class ComparableMixin(object):
 	
-	''' A Mixin for adding rich comparison methods to a comparable object '''
+	''' A mixin for adding rich comparison methods to a comparable object '''
 
 	def _compare(self, other, method):
 		try:
@@ -258,36 +254,68 @@ class TriangleNode(ComparableMixin):
 
 	''' A class representing a single node in a triangle data structure '''
 
-	def __init__(self, value, parent=None, lchild=None, rchild=None):
+	def __init__(self, value, lparent=None, rparent=None, lchild=None, 
+			rchild=None, row=None, row_index=None):
 		self.value = value
-		self.parent = None
-		self.lchild = None
-		self.rchild = None
+		self.lparent = lparent
+		self.rparent = rparent
+		self.lchild = lchild
+		self.rchild = rchild
+		self.row = row
+		self.row_index = row_index # zero indexed
+
+		# Holds summation of all child node weights for traversal
+		self.weighted_cost = None
+
+	def children(self):
+		''' return a list of children to this node '''
+		children = []
+		if self.lchild is not None:
+			children.append(self.lchild)
+		if self.rchild is not None:
+			children.append(self.rchild)
+		return children
+
+	def parents(self):
+		''' return a list of parents to the node '''
+		parents = []
+		if self.lparent is not None:
+			parents.append(self.lparent)
+		if self.rparent is not None:
+			parents.append(self.rparent)
+		return parents
 
 	def _cmpkey(self):
-		''' [Private] Used in rich comparion operations '''
+		''' [Private] Used in rich comparison operations '''
 		return self.value
 
 	def __repr__(self):
-		return "<TriangleNode val:%d: Parent:%s, LChild:%s, RChild:%s>" % (
-			self.value,
-			str(self.parent) if self.parent is None else 'Node:' + 
-				str(self.parent.value),
-			str(self.lchild) if self.lchild is None else 'Node:' + 
-				str(self.lchild.value),
-			str(self.rchild) if self.rchild is None else 'Node:' + 
-				str(self.rchild.value))
+		return ("<TriangleNode val:%d, weightedVal:%s, row:%s, idx:%s, "
+			"lParent:%s, rParent:%s, lChild:%s, rChild:%s>") % (
+				self.value,
+				"unknown" if self.weighted_cost is None else 
+					str(self.weighted_cost),
+				"unknown" if self.row is None else str(self.row),
+				"unknown" if self.row_index is None else str(self.row_index),
+				"unknown" if self.lparent is None else 'Node' + 
+					str(self.lparent.value),
+				"unknown" if self.rparent is None else 'Node' + 
+					str(self.rparent.value),
+				"unknown" if self.lchild is None else 'Node' + 
+					str(self.lchild.value),
+				"unknown" if self.rchild is None else 'Node' + 
+					str(self.rchild.value))
 
 
 class TriangleSolver(object):
 
 	''' A class that parses and solves max paths in triangle data structs '''
 
-	def __init__(self, inputfile, verbose=False, logging_file=None):
-		self.inputfile = inputfile
+	def __init__(self, input_file, verbose=False, logging_file=None):
+		self.input_file = input_file
 		self.verbose = verbose
 		self.logging_file = logging_file
-		self._nodes = []
+		self._rows = []
 
 		# Setup Logging Environment
 		if self.logging_file is not None:
@@ -296,28 +324,54 @@ class TriangleSolver(object):
 		if self.verbose:
 			# Attach Console Logger
 			self._init_console_logging()
+		else:
+			# Use a base logger
+			error_formatter = logging.Formatter("%(levelname)s:%(message)s")
+			error_handler = logging.StreamHandler()
+			error_handler.setFormatter(error_formatter)
+			error_handler.setLevel(logging.ERROR)
+			root_logger.addHandler(error_handler)
+
+		# Vocalize
+		root_logger.debug("TriangleSolver v%s by Brendan Ashby has loaded." % VERSION)
+		root_logger.debug("Logging to File: %s. Verbose Logging to Console: %s."
+			% (self.logging_file is not None, self.verbose))
 
 	def parse_input_file(self):
 		''' Reads in triangle structure data and construct helper classes '''
-		rows = []
-		with open(self.inputfile, "r") as f:
+		row = 0
+		with open(self.input_file, "r") as f:
 			for line in f:
 				if len(line.strip()) == 0:  # Ignore blank lines
 					continue
-				row = line.split()
-				rows.append(row)
-				for node in row:
-					self._nodes.append(TriangleNode(int(node)))
+				row_nodes = []
+				for node in line.split():
+					row_nodes.append(TriangleNode(int(node), row=row, 
+						row_index=len(row_nodes)))
+				self._rows.append(row_nodes)
+				row += 1
+
+			# Assign Parents and Children (this feels yucky. I should redo it.)
+			for row_idx, row in enumerate(self._rows):
+				for node_idx, node in enumerate(row):
+					# Check if not leaf node	
+					if row_idx < len(self._rows) - 1:
+						# All of these nodes have both children
+						node.lchild = self._rows[row_idx + 1][node_idx]
+						node.rchild = self._rows[row_idx + 1][node_idx + 1]
+					# Check this is not a left most node
+					if node_idx > 0:
+						node.lparent = self._rows[row_idx - 1][node_idx - 1]
+					# Check this is not a right most node
+					if node_idx < row_idx:
+						node.rparent = self._rows[row_idx - 1][node_idx]
 
 	def _init_file_logging(self):
 		''' [Private] Initializes file-based logging if requested at 
 				instantiation '''
-		full_formatter = logging.Formatter("""%(asctime)s:
-					%(levelname)s:
-					%(module)s.
-					%(funcName)s@L
-					%(lineno)d:
-					%(message)s""")
+		fmt = ("%(asctime)s:%(levelname)s:%(module)s.%(funcName)s@L"
+			"%(lineno)d:%(message)s")
+		full_formatter = logging.Formatter(fmt)
 		file_handler = logging.FileHandler(self.logging_file)
 		file_handler.setFormatter(full_formatter)
 		root_logger.addHandler(file_handler)
@@ -325,27 +379,45 @@ class TriangleSolver(object):
 	def _init_console_logging(self):
 		''' [Private] Initializes console-based logging if requested at 
 				instantiation '''
-		clean_formatter = logging.Formatter("""%(levelname)s:
-					%(module)s.
-					%(funcName)s@L
-					%(lineno)d:
-					%(message)s""")
+		fmt = "%(levelname)s:%(module)s.%(funcName)s@L%(lineno)d:%(message)s"
+		clean_formatter = logging.Formatter(fmt)
 		console_handler = logging.StreamHandler(stream=sys.stdout)
 		console_handler.setFormatter(clean_formatter)
+		console_handler.setLevel(logging.DEBUG)
 		root_logger.addHandler(console_handler)
+
+	def percolate_weights(self):
+		''' Runs through the triangle in reverse percolating weights to parent
+				nodes '''
+
+		# Iterate through rows in reverse, ignore the leaf nodes
+		# Computer weighted value
+		for row in self._rows[:-1][::-1]:
+			for node in row:
+				node.weighted_cost = node.value + max(node.children(), key=lambda n: n.value).value
+
+		# Traverse the triangle
+		current_node = self._rows[0][0]
+		total = 0
+		node_order = []
+		while current_node.children():
+			total += current_node.value
+			node_order.append(current_node)
+			current_node = max(current_node.children(), key=lambda n: n.weighted_cost)
+
+		print total, node_order
 
 	def debug(self):
 		''' quick debugging '''
-		for j in self.jugglers:
-			print j
-		for c in self.circuits:
-			print c
+		for row in self._rows:
+			for node in row:
+				print node
 
 
 if __name__ == '__main__':
 
 	def usage_override(name=None):
-		return """%(prog)s [-h] [--verbose] [--log [aFilename]] inputfile\n
+		return """%(prog)s [-h] [-v] [-l [logfile]] inputfile\n
  _______   _                   _       _____       _                
 |__   __| (_)                 | |     / ____|     | |               
    | |_ __ _  __ _ _ __   __ _| | ___| (___   ___ | |_   _____ _ __ 
@@ -359,10 +431,10 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		usage=usage_override(),
 		prog=os.path.basename(__file__),
-		description="""%(prog)s: A program to schedule Jugglers 
-			to Circuits for Yodle.""",
+		description="""%(prog)s: A program to compute the 'max()'' path through
+			a triangle.""",
 		epilog="""[Note] If \'--log\' is supplied without an arugment, then a
-			default filename (jugglefest_log.txt) is used for logging. When 
+			default filename (trianglesolver.log) is used for logging. When 
 			using the default filename, avoid argparse ambiguity by suppling 
 			\'--log\' as the last argument (after \'inputfile\').""")
 	parser.add_argument(
@@ -376,18 +448,24 @@ if __name__ == '__main__':
 		"-l",
 		"--log",
 		nargs="?",
-		const="jugglefest_log.txt",
+		const="trianglesolver.log",
 		default=None,
 		dest="logfile",
-		metavar="aFilename",
+		metavar="logfile",
 		help="should I log my actions to a logfile? [default: no]")
 	parser.add_argument(
 		"inputfile",
-		help="a path to a file of jugglers and circuits to be assigned.")
+		help="""a path to a file containing a triangle data structure to be
+			traversed.""")
 	args = parser.parse_args()
 
 	# Time to Juggle Baby!
-	aGloriousJuggleFestScheduler = JuggleFestOmnipotentScheduler(
+	aTriangleSolver = TriangleSolver(
 		args.inputfile,
 		verbose=args.verbose,
 		logging_file=args.logfile)
+
+	# Parse Input
+	aTriangleSolver.parse_input_file()
+	aTriangleSolver.percolate_weights()
+	#aTriangleSolver.debug()

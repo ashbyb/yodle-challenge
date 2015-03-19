@@ -143,7 +143,7 @@ class JuggleFestOmnipotentScheduler(object):
 			root_logger.addHandler(error_handler)
 
 		# Vocalize
-		root_logger.debug("JuggleFest v%s by Brendan Ashby, has loaded." % VERSION)
+		root_logger.debug("JuggleFest v%s by Brendan Ashby has loaded." % VERSION)
 		root_logger.debug("Logging to File: %s. Verbose Logging to Console: %s."
 			% (self.logging_file is not None, self.verbose))
 
