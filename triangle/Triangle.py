@@ -21,9 +21,9 @@ When you first approach the problem, it seems you just take each node, look at
 its child nodes, and choose the larger one. This works for the example 
 triangle given to us. See Example:
 
-	  1
-	 1 2
-	3 1 2
+      1
+     1 2
+    3 1 2
    3 1 1 2
 
 If you follow the simple "take the larger child process" then you would get
@@ -33,8 +33,8 @@ Possible corner case:
 Any given node can be of ANY size. We can not take the risk of ignoring any
 node(s) due to some heuristic. For example:
 
-	  1
-	10 1
+      1
+    10 1
    10 1 1
   10 1 1 1
  10 1 1 1 100
@@ -82,7 +82,7 @@ in the last row. Compare in turn to each item in next row up, go with the
 first item that is adjacent to current node. Continue until at root.
 Example:
 
-	1
+    1
    1 3
   1 5 2
  1 6 3 4
@@ -114,9 +114,9 @@ and not the huge number pasted above.
 Let me see if I can break my solution:
 
 Using odd number of rows...
-	  1
-	 2 2
-	2 1 2
+      1
+     2 2
+    2 1 2
    2 1 1 2
   2 1 9 1 2
  2 2 1 1 2 2
@@ -128,12 +128,12 @@ Using odd number of rows...
 Try another example:
 
 Using even number of rows...
-		 1
-		1 1
-	   1 1 1
-	  1 1 1 1
-	 1 1 1 1 1 
-	2 1 1 1 1 2
+         1
+        1 1
+       1 1 1
+      1 1 1 1
+     1 1 1 1 1 
+    2 1 1 1 1 2
    2 2 1 9 1 2 2  <- assume the 9 is a huge number
   2 2 2 1 1 2 2 2
  2 2 2 2 1 2 2 2 2
@@ -167,8 +167,8 @@ make your decisions based on the entire structure of the triangle.
 
 Example:
 
-	 1
-	2 6      (start at 2nd to last row. Take the bigger of the child nodes
+     1
+    2 6      (start at 2nd to last row. Take the bigger of the child nodes
    3 8 7      and add its value to the current node. Set the current node
   3 8 4 5     to that value. move up to next row and repeat. Ignore the root.)
  8 7 3 7 3
@@ -176,10 +176,10 @@ Example:
 
 Becomes....
 
-		  1
-	   28  32    
-	  21 26 23      
-	14 18 15 16   
+          1
+       28  32    
+      21 26 23      
+    14 18 15 16   
    11 10 7 11 10
   2  3  3 4  6  7
 
@@ -333,7 +333,8 @@ class TriangleSolver(object):
 			root_logger.addHandler(error_handler)
 
 		# Vocalize
-		root_logger.debug("TriangleSolver v%s by Brendan Ashby has loaded." % VERSION)
+		root_logger.debug("TriangleSolver v%s by Brendan Ashby has loaded." % 
+			VERSION)
 		root_logger.debug("Logging to File: %s. Verbose Logging to Console: %s."
 			% (self.logging_file is not None, self.verbose))
 
@@ -392,7 +393,7 @@ class TriangleSolver(object):
 
 		# Iterate through rows in reverse, ignore the leaf nodes
 		# Computer weighted value
-		for row in self._rows[:-1][::-1]:
+		for row  in self._rows[:-1][::-1]:
 			for node in row:
 				node.weighted_cost = node.value + max(node.children(), key=lambda n: n.value).value
 
@@ -404,8 +405,12 @@ class TriangleSolver(object):
 			total += current_node.value
 			node_order.append(current_node)
 			current_node = max(current_node.children(), key=lambda n: n.weighted_cost)
+		# Add final leaf node
+		total += current_node.value
+		node_order.append(current_node)
 
-		print total, node_order
+		# Petty print answer
+		print total, ' -> '.join([str(node.value) for node in node_order])
 
 	def debug(self):
 		''' quick debugging '''
