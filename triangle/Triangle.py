@@ -204,7 +204,7 @@ Time to code it.
 """
 
 # "Constants"
-VERSION = "0.1.0"
+VERSION = "0.1.4"
 
 # Python Standard Lib Imports
 import os
@@ -216,41 +216,22 @@ import logging
 root_logger = logging.getLogger(__name__)
 root_logger.setLevel(logging.DEBUG)
 
+class TriangleException(Exception):
+	''' Base exception for Triangle Module '''
+	pass
 
-# When brushing up on python custom comparison methods I found a great mixin.
-# Attribution: Link to Source: http://bit.ly/1Bysb8f
-class ComparableMixin(object):
-	
-	''' A mixin for adding rich comparison methods to a comparable object '''
 
-	def _compare(self, other, method):
-		try:
-			return method(self._cmpkey(), other._cmpkey())
-		except (AttributeError, TypeError):
-			# _cmpkey not implemented, or return different type,
-			# so I can't compare with "other".
-			return NotImplemented
+class FileReadFailure(TriangleException):
+	''' Failed to read/access the provided file '''
+	pass
 
-	def __lt__(self, other):
-		return self._compare(other, lambda s,o: s < o)
 
-	def __le__(self, other):
-		return self._compare(other, lambda s,o: s <= o)
+class FileParseFailure(TriangleException):
+	''' Failed to parse the provided file '''
+	pass
 
-	def __eq__(self, other):
-	   return self._compare(other, lambda s,o: s == o)
 
-	def __ge__(self, other):
-		return self._compare(other, lambda s,o: s >= o)
-
-	def __gt__(self, other):
-		return self._compare(other, lambda s,o: s > o)
-
-	def __ne__(self, other):
-		return self._compare(other, lambda s,o: s != o)
-		
-
-class TriangleNode(ComparableMixin):
+class TriangleNode(object):
 
 	''' A class representing a single node in a triangle data structure '''
 
@@ -284,10 +265,6 @@ class TriangleNode(ComparableMixin):
 		if self.rparent is not None:
 			parents.append(self.rparent)
 		return parents
-
-	def _cmpkey(self):
-		''' [Private] Used in rich comparison operations '''
-		return self.value
 
 	def __repr__(self):
 		return ("<TriangleNode val:%d, weightedVal:%s, row:%s, idx:%s, "
@@ -341,31 +318,45 @@ class TriangleSolver(object):
 	def parse_input_file(self):
 		''' Reads in triangle structure data and construct helper classes '''
 		row = 0
-		with open(self.input_file, "r") as f:
-			for line in f:
-				if len(line.strip()) == 0:  # Ignore blank lines
-					continue
-				row_nodes = []
-				for node in line.split():
-					row_nodes.append(TriangleNode(int(node), row=row, 
-						row_index=len(row_nodes)))
-				self._rows.append(row_nodes)
-				row += 1
+		try:
+			with open(self.input_file, "r") as f:
+				for line in f:
+					if len(line.strip()) == 0:  # Ignore blank lines
+						continue
+					row_nodes = []
+					for node in line.split():
+						row_nodes.append(TriangleNode(int(node), row=row, 
+							row_index=len(row_nodes)))
+					self._rows.append(row_nodes)
+					row += 1
 
-			# Assign Parents and Children (this feels yucky. I should redo it.)
-			for row_idx, row in enumerate(self._rows):
-				for node_idx, node in enumerate(row):
-					# Check if not leaf node	
-					if row_idx < len(self._rows) - 1:
-						# All of these nodes have both children
-						node.lchild = self._rows[row_idx + 1][node_idx]
-						node.rchild = self._rows[row_idx + 1][node_idx + 1]
-					# Check this is not a left most node
-					if node_idx > 0:
-						node.lparent = self._rows[row_idx - 1][node_idx - 1]
-					# Check this is not a right most node
-					if node_idx < row_idx:
-						node.rparent = self._rows[row_idx - 1][node_idx]
+				# Log rows loaded
+				root_logger.debug("%d rows loaded from inputfile." % len(self._rows))
+
+				# Assign Parents and Children
+				# TODO: this feels yucky. I should probably redo it.)
+				for row_idx, row in enumerate(self._rows):
+					for node_idx, node in enumerate(row):
+						try:
+							# Check if not leaf node	
+							if row_idx < len(self._rows) - 1:
+								# All of these nodes have both children
+								node.lchild = self._rows[row_idx + 1][node_idx]
+								node.rchild = self._rows[row_idx + 1][node_idx + 1]
+								# Check this is not a left most node
+							if node_idx > 0:
+								node.lparent = self._rows[row_idx - 1][node_idx - 1]
+							# Check this is not a right most node
+							if node_idx < row_idx:
+								node.rparent = self._rows[row_idx - 1][node_idx]
+							# Debug initializedn node:
+							root_logger.debug("Node Ready: %s" % node)
+						except IndexError:
+							root_logger.error("Error assigning parents/children.")
+							raise FileParseError()
+		except IOError:
+			root_logger.error("Error opening inputfile")
+			raise FileReadError()
 
 	def _init_file_logging(self):
 		''' [Private] Initializes file-based logging if requested at 
@@ -393,7 +384,8 @@ class TriangleSolver(object):
 
 		# Iterate through rows in reverse, ignore the leaf nodes
 		# Computer weighted value
-		for row  in self._rows[:-1][::-1]:
+		root_logger.debug("Percolating Weights...")
+		for row in self._rows[:-1][::-1]:
 			for node in row:
 				node.weighted_cost = node.value + max(node.children(), key=lambda n: n.value).value
 
@@ -401,22 +393,24 @@ class TriangleSolver(object):
 		current_node = self._rows[0][0]
 		total = 0
 		node_order = []
+		root_logger.debug("Traversing Triangle...")
 		while current_node.children():
 			total += current_node.value
 			node_order.append(current_node)
 			current_node = max(current_node.children(), key=lambda n: n.weighted_cost)
-		# Add final leaf node
+		# Add final leaf node to path
 		total += current_node.value
 		node_order.append(current_node)
 
-		# Petty print answer
-		print total, ' -> '.join([str(node.value) for node in node_order])
-
-	def debug(self):
-		''' quick debugging '''
-		for row in self._rows:
-			for node in row:
-				print node
+		# Pretty print answer
+		root_logger.debug("Final Path Found: " +  
+			' -> '.join([str(node.value) for node in node_order]))
+		root_logger.debug("Total: %d" % total)
+		
+		# Print something simple when not verbose
+		if not self.verbose:
+			print ' -> '.join([str(node.value) for node in node_order]),
+			print '=', total
 
 
 if __name__ == '__main__':
@@ -429,7 +423,7 @@ if __name__ == '__main__':
    | | '__| |/ _` | '_ \ / _` | |/ _ \\\\___ \ / _ \| \ \ / / _ \ '__|
    | | |  | | (_| | | | | (_| | |  __/____) | (_) | |\ V /  __/ |   
    |_|_|  |_|\__,_|_| |_|\__, |_|\___|_____/ \___/|_| \_/ \___|_|   
-                          __/ |   v{version} by Brendan Ashby                         
+                          __/ |   v{version} by Brendan Ashby       
                          |___/                                      
 		""".format(version=VERSION)
 
@@ -464,7 +458,7 @@ if __name__ == '__main__':
 			traversed.""")
 	args = parser.parse_args()
 
-	# Time to Juggle Baby!
+	# Time to triangle traverse!
 	aTriangleSolver = TriangleSolver(
 		args.inputfile,
 		verbose=args.verbose,
@@ -472,5 +466,5 @@ if __name__ == '__main__':
 
 	# Parse Input
 	aTriangleSolver.parse_input_file()
+	# Solve
 	aTriangleSolver.percolate_weights()
-	#aTriangleSolver.debug()
